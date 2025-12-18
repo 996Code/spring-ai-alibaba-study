@@ -15,9 +15,6 @@
  */
 package com.alibaba.cloud.ai.examples.documentation.framework.tutorials;
 
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
@@ -29,6 +26,7 @@ import com.alibaba.cloud.ai.graph.agent.hook.ModelHook;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.MessagesModelHook;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.AgentCommand;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.UpdatePolicy;
+import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelInterceptor;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelRequest;
@@ -40,6 +38,7 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ToolInterceptor;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 
+import org.jetbrains.annotations.NotNull;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -54,6 +53,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,13 +63,29 @@ import java.util.function.BiFunction;
 import reactor.core.publisher.Flux;
 
 /**
- * Agents Tutorial - agents.md
+ * https://java2ai.com/docs/frameworks/agent-framework/tutorials/agents/
  */
 public class OllamaTest {
 
 
     private static ReactAgent getReactAgent(String my_agent) {
 
+        ChatModel chatModel = getChatModel();
+
+        ReactAgent agent = ReactAgent.builder()
+                .name(my_agent)
+                .model(chatModel)
+                // 限制最多调用 5 次
+                .hooks(ModelCallLimitHook.builder().runLimit(5).build())
+                // 使用自定义停止条件
+//                .hooks(new CustomStopConditionHook())
+                .build();
+
+        return agent;
+    }
+
+    @NotNull
+    private static ChatModel getChatModel() {
         OllamaApi build = OllamaApi.builder()
                 .baseUrl("http://996code.top:11434")
                 .build();
@@ -82,12 +98,7 @@ public class OllamaTest {
                 )
                 .ollamaApi(build)
                 .build();
-
-        ReactAgent agent = ReactAgent.builder()
-                .name(my_agent)
-                .model(chatModel)
-                .build();
-        return agent;
+        return chatModel;
     }
 
     // ==================== 基础模型配置 ====================
@@ -129,18 +140,7 @@ public class OllamaTest {
     // ==================== 工具定义 ====================
 
     public static void toolUsage() {
-        OllamaApi build = OllamaApi.builder()
-                .baseUrl("http://996code.top:11434")
-                .build();
-
-        ChatModel chatModel = OllamaChatModel.builder()
-                .defaultOptions(
-                        OllamaChatOptions.builder()
-                                .model("qwen3")
-                                .build()
-                )
-                .ollamaApi(build)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 创建工具回调
         ToolCallback searchTool = FunctionToolCallback
@@ -161,18 +161,7 @@ public class OllamaTest {
      * 示例5：基础 System Prompt
      */
     public static void basicSystemPrompt() {
-        OllamaApi build = OllamaApi.builder()
-                .baseUrl("http://996code.top:11434")
-                .build();
-
-        ChatModel chatModel = OllamaChatModel.builder()
-                .defaultOptions(
-                        OllamaChatOptions.builder()
-                                .model("qwen3")
-                                .build()
-                )
-                .ollamaApi(build)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         ReactAgent agent = ReactAgent.builder()
                 .name("my_agent")
@@ -185,18 +174,7 @@ public class OllamaTest {
      * 示例6：使用 instruction
      */
     public static void instructionUsage() {
-        OllamaApi build = OllamaApi.builder()
-                .baseUrl("http://996code.top:11434")
-                .build();
-
-        ChatModel chatModel = OllamaChatModel.builder()
-                .defaultOptions(
-                        OllamaChatOptions.builder()
-                                .model("qwen3")
-                                .build()
-                )
-                .ollamaApi(build)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         String instruction = """
 				你是一个经验丰富的软件架构师。
@@ -220,18 +198,7 @@ public class OllamaTest {
     // ==================== System Prompt ====================
 
     public static void dynamicSystemPrompt() {
-        OllamaApi build = OllamaApi.builder()
-                .baseUrl("http://996code.top:11434")
-                .build();
-
-        ChatModel chatModel = OllamaChatModel.builder()
-                .defaultOptions(
-                        OllamaChatOptions.builder()
-                                .model("qwen3")
-                                .build()
-                )
-                .ollamaApi(build)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         ReactAgent agent = ReactAgent.builder()
                 .name("adaptive_agent")
@@ -333,13 +300,7 @@ public class OllamaTest {
      * 示例10.2：流式调用 - 高级用法
      */
     public static void advancedStreamInvocation() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         ReactAgent agent = ReactAgent.builder()
                 .name("streaming_agent")
@@ -396,14 +357,15 @@ public class OllamaTest {
         }
     }
 
+    /**
+     * 结构化输出
+     *
+     * 使用 outputType
+     * 通过 Java 类定义输出结构，Agent 会自动生成对应的 JSON Schema
+     */
     public static void structuredOutputWithType() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
 
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         ReactAgent agent = ReactAgent.builder()
                 .name("poem_agent")
@@ -418,16 +380,14 @@ public class OllamaTest {
     }
 
     /**
+     * 结构化输出
+     *
      * 示例12：使用 outputSchema
+     * 通过
      */
     public static void structuredOutputWithSchema() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
 
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // Use BeanOutputConverter to generate outputSchema
         BeanOutputConverter<TextAnalysisResult> outputConverter = new BeanOutputConverter<>(TextAnalysisResult.class);
@@ -441,19 +401,18 @@ public class OllamaTest {
                 .build();
 
         AssistantMessage response = agent.call("分析这段文本：春天来了，万物复苏。");
+        // 输出会遵循 TextAnalysisResult 的结构
+        System.out.println(response.getText());
     }
 
     /**
      * 示例13：配置记忆
+     *
+     * 生产环境：使用 RedisSaver、MongoSaver 等持久化存储替代 MemorySaver。
      */
     public static void configureMemory() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
 
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 配置内存存储
         ReactAgent agent = ReactAgent.builder()
@@ -467,8 +426,10 @@ public class OllamaTest {
                 .threadId("user_123")
                 .build();
 
-        agent.call("我叫张三", config);
-        agent.call("我叫什么名字？", config);  // 输出: "你叫张三"
+        AssistantMessage response = agent.call("我叫张三", config);
+        System.out.println(response.getText());
+        AssistantMessage response1 = agent.call("我叫什么名字？", config);// 输出: "你叫张三"
+        System.out.println(response1.getText());
     }
 
     // ==================== 结构化输出 ====================
@@ -496,8 +457,8 @@ public class OllamaTest {
 //			System.out.println("\n--- 示例7：动态 System Prompt ---");
 //			dynamicSystemPrompt();
 
-//            System.out.println("\n--- 示例8：基础调用 ---");
-//            basicInvocation();
+            System.out.println("\n--- 示例8：基础调用 ---");
+            basicInvocation();
 
 //			System.out.println("\n--- 示例9：获取完整状态 ---");
 //			getFullState();
@@ -505,8 +466,8 @@ public class OllamaTest {
 //			System.out.println("\n--- 示例10：使用配置 ---");
 //			useConfiguration();
 //
-			System.out.println("\n--- 示例10.1：流式调用 - 基础用法 ---");
-			basicStreamInvocation();
+//			System.out.println("\n--- 示例10.1：流式调用 - 基础用法 ---");
+//			basicStreamInvocation();
 //
 //			System.out.println("\n--- 示例10.2：流式调用 - 高级用法 ---");
 //			advancedStreamInvocation();
@@ -713,6 +674,10 @@ public class OllamaTest {
 
     /**
      * 示例14：AgentHook - 在 Agent 开始/结束时执行
+     *
+     * AgentHook - 在 Agent 开始/结束时执行，每次Agent调用只会运行一次
+     *
+     * BEFORE_AGENT / AFTER_AGENT：Agent 整体执行前后
      */
     public static class LoggingHook extends AgentHook {
         @Override
@@ -746,6 +711,12 @@ public class OllamaTest {
     /**
      * 示例15：MessagesModelHook - 在模型调用前修剪消息
      * 使用 MessagesModelHook 实现，在模型调用前修剪消息列表，只保留最后 MAX_MESSAGES 条消息
+     *
+     * MessagesModelHook - 在模型调用前后执行（例如：消息修剪），
+     * 专门用于操作消息列表，使用更简单，更推荐。
+     * 区别于AgentHook，MessagesModelHook在一次agent调用中可能会调用多次，也就是每次 reasoning-acting 迭代都会执行
+     *
+     * BEFORE_MODEL / AFTER_MODEL：Agent Loop 循环过程中，每次模型调用前后
      */
     @HookPositions({HookPosition.BEFORE_MODEL})
     public static class MessageTrimmingHook extends MessagesModelHook {
@@ -774,6 +745,11 @@ public class OllamaTest {
 
     /**
      * 示例16：ModelInterceptor - 内容安全检查
+     *
+     * Interceptors 提供更细粒度的控制，可以拦截和修改模型调用和工具执行。
+     *
+     * ModelInterceptor：内容安全、动态提示、日志记录、性能监控
+     *
      */
     public static class GuardrailInterceptor extends ModelInterceptor {
         @Override
@@ -806,10 +782,11 @@ public class OllamaTest {
         }
     }
 
-    // ==================== Main 方法 ====================
 
     /**
      * 示例17：ToolInterceptor - 监控和错误处理
+     *
+     * ToolInterceptor：错误重试、权限检查、结果缓存、审计日志
      */
     public static class ToolMonitoringInterceptor extends ToolInterceptor {
         @Override
@@ -839,6 +816,42 @@ public class OllamaTest {
         public String getName() {
             return "ToolMonitoringInterceptor";
         }
+    }
+
+
+    // 自定义停止条件：基于状态判断是否继续
+    @HookPositions({HookPosition.BEFORE_MODEL})
+    public static class CustomStopConditionHook extends ModelHook {
+
+        @Override
+        public String getName() {
+            return "custom_stop_condition";
+        }
+
+        @Override
+        public CompletableFuture<Map<String, Object>> beforeModel(OverAllState state, RunnableConfig config) {
+            // 检查是否找到答案，展示使用 OverAllState
+            boolean answerFound = (Boolean) state.value("answer_found").orElse(false);
+            // 检查错误次数，展示使用 RunnableConfig
+            Integer errorCount = (Integer) config.context().get("error_count");
+            if(null == errorCount){
+                errorCount = 0;
+            }
+
+            // 找到答案或错误过多时停止
+            if (answerFound || errorCount > 3) {
+                List<Message> messages = new ArrayList<>();
+                messages.add(new AssistantMessage(
+                        answerFound ? "已找到答案，Agent 执行完成。"
+                                : "错误次数过多 (" + errorCount + ")，Agent 执行终止。"
+                ));
+                // the messages will be appended to the original message list context.
+                return CompletableFuture.completedFuture(Map.of("messages", messages));
+            }
+
+            return CompletableFuture.completedFuture(Map.of());
+        }
+
     }
 }
 
