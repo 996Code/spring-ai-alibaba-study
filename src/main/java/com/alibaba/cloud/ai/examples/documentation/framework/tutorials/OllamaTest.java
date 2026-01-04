@@ -38,7 +38,13 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ToolInterceptor;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 
+import com.alibaba.cloud.ai.graph.streaming.OutputType;
+import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
+import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.extern.log4j.Log4j2;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -53,10 +59,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
@@ -65,6 +68,7 @@ import reactor.core.publisher.Flux;
 /**
  * https://java2ai.com/docs/frameworks/agent-framework/tutorials/agents/
  */
+@Log4j2
 public class OllamaTest {
 
 
@@ -93,7 +97,7 @@ public class OllamaTest {
         ChatModel chatModel = OllamaChatModel.builder()
                 .defaultOptions(
                         OllamaChatOptions.builder()
-                                .model("qwen3")
+                                .model("qwen3:1.7b")
                                 .build()
                 )
                 .ollamaApi(build)
@@ -106,15 +110,17 @@ public class OllamaTest {
     /**
      * 示例1：基础模型配置
      */
-    public static void basicModelConfiguration() {
-        // 创建 DashScope API 实例
+    @Test
+    public void basicModelConfiguration() {
+        // 创建 Ollama API 实例
         getReactAgent("my_agent");
     }
 
     /**
      * 示例2：高级模型配置
      */
-    public static void advancedModelConfiguration() {
+    @Test
+    public void advancedModelConfiguration() {
 
 
         OllamaApi build = OllamaApi.builder()
@@ -139,7 +145,8 @@ public class OllamaTest {
 
     // ==================== 工具定义 ====================
 
-    public static void toolUsage() {
+    @Test
+    public void toolUsage() {
         ChatModel chatModel = getChatModel();
 
         // 创建工具回调
@@ -160,7 +167,8 @@ public class OllamaTest {
     /**
      * 示例5：基础 System Prompt
      */
-    public static void basicSystemPrompt() {
+    @Test
+    public void basicSystemPrompt() {
         ChatModel chatModel = getChatModel();
 
         ReactAgent agent = ReactAgent.builder()
@@ -173,7 +181,8 @@ public class OllamaTest {
     /**
      * 示例6：使用 instruction
      */
-    public static void instructionUsage() {
+    @Test
+    public void instructionUsage() {
         ChatModel chatModel = getChatModel();
 
         String instruction = """
@@ -197,7 +206,8 @@ public class OllamaTest {
 
     // ==================== System Prompt ====================
 
-    public static void dynamicSystemPrompt() {
+    @Test
+    public void dynamicSystemPrompt() {
         ChatModel chatModel = getChatModel();
 
         ReactAgent agent = ReactAgent.builder()
@@ -210,16 +220,17 @@ public class OllamaTest {
     /**
      * 示例8：基础调用
      */
-    public static void basicInvocation() throws GraphRunnerException {
+    @Test
+    public void basicInvocation() throws GraphRunnerException {
         ReactAgent agent = getReactAgent("my_agent");
         // 字符串输入
         AssistantMessage response = agent.call("杭州的天气怎么样？");
-        System.out.println(response.getText());
+        log.info(response.getText());
 
         // UserMessage 输入
         UserMessage userMessage = new UserMessage("帮我分析这个问题");
         AssistantMessage response2 = agent.call(userMessage);
-        System.out.println(response2.getText());
+        log.info(response2.getText());
 
         // 多个消息
         List<Message> messages = List.of(
@@ -227,14 +238,15 @@ public class OllamaTest {
                 new UserMessage("特别是线程池的使用")
         );
         AssistantMessage response3 = agent.call(messages);
-        System.out.println(response3.getText());
+        log.info(response3.getText());
     }
 
 
     /**
      * 示例9：获取完整状态
      */
-    public static void getFullState() throws GraphRunnerException {
+    @Test
+    public void getFullState() throws GraphRunnerException {
         ReactAgent agent = getReactAgent("my_agent");
 
         Optional<OverAllState> result = agent.invoke("帮我写一首诗");
@@ -245,20 +257,21 @@ public class OllamaTest {
             // 访问消息历史
             Optional<Object> messages = state.value("messages");
             List<Message> messageList = (List<Message>) messages.get();
-            System.out.println("消息历史：" + messageList);
+            log.info("消息历史：{}", messageList);
 
             // 访问自定义状态
             Optional<Object> customData = state.value("custom_key");
-            System.out.println("自定义状态：" + customData);
+            log.info("自定义状态：{}", customData);
 
-            System.out.println("完整状态：" + state);
+            log.info("完整状态：{}", state);
         }
     }
 
     /**
      * 示例10：使用配置
      */
-    public static void useConfiguration() throws GraphRunnerException {
+    @Test
+    public void useConfiguration() throws GraphRunnerException {
         ReactAgent agent = getReactAgent("my_agent");
 
         String threadId = "thread_123";
@@ -268,7 +281,7 @@ public class OllamaTest {
                 .build();
 
         AssistantMessage response = agent.call("你的问题", runnableConfig);
-        System.out.println(response.getText());
+        log.info(response.getText());
     }
 
     // ==================== 调用 Agent ====================
@@ -276,7 +289,8 @@ public class OllamaTest {
     /**
      * 示例10.1：流式调用 - 基础用法
      */
-    public static void basicStreamInvocation() throws GraphRunnerException {
+    @Test
+    public void basicStreamInvocation() throws GraphRunnerException {
         ReactAgent agent = getReactAgent("streaming_agent");
 
         // 流式输出
@@ -285,21 +299,22 @@ public class OllamaTest {
         stream.subscribe(
                 output -> {
                     // 处理每个节点输出
-                    System.out.println("节点: " + output.node());
-                    System.out.println("Agent: " + output.agent());
+                    log.info("节点: {}", output.node());
+                    log.info("Agent: {}", output.agent());
                     if (output.tokenUsage() != null) {
-                        System.out.println("Token使用: " + output.tokenUsage());
+                        log.info("Token使用: {}", output.tokenUsage());
                     }
                 },
                 error -> System.err.println("错误: " + error.getMessage()),
-                () -> System.out.println("流式输出完成")
+                () -> log.info("流式输出完成")
         );
     }
 
     /**
      * 示例10.2：流式调用 - 高级用法
      */
-    public static void advancedStreamInvocation() throws GraphRunnerException {
+    @Test
+    public void advancedStreamInvocation() throws GraphRunnerException {
         ChatModel chatModel = getChatModel();
 
         ReactAgent agent = ReactAgent.builder()
@@ -313,16 +328,17 @@ public class OllamaTest {
                 .build();
 
         // 使用配置的流式调用
-        Flux<NodeOutput> stream = agent.stream(new UserMessage("解释一下量子计算"), config);
+        Flux<NodeOutput> stream = agent
+                .stream(new UserMessage("解释一下量子计算"), config);
 
         // 使用 doOnNext 处理中间输出
         stream.doOnNext(output -> {
                     if (!output.isSTART() && !output.isEND()) {
-                        System.out.println("处理中...");
-                        System.out.println("当前节点: " + output.node());
+                        log.info("处理中...");
+                        log.info("当前节点: {}", output.node());
                     }
                 })
-                .doOnComplete(() -> System.out.println("所有节点处理完成"))
+                .doOnComplete(() -> log.info("所有节点处理完成"))
                 .doOnError(e -> System.err.println("流处理错误: " + e.getMessage()))
                 .blockLast(); // 阻塞等待完成
     }
@@ -330,7 +346,8 @@ public class OllamaTest {
     /**
      * 示例10.3：流式调用 - 收集所有输出
      */
-    public static void collectStreamOutputs() throws GraphRunnerException {
+    @Test
+    public void collectStreamOutputs() throws GraphRunnerException {
         ReactAgent agent = getReactAgent("streaming_agent");
 
         Flux<NodeOutput> stream = agent.stream("分析机器学习的应用场景");
@@ -339,11 +356,11 @@ public class OllamaTest {
         List<NodeOutput> outputs = stream.collectList().block();
 
         if (outputs != null) {
-            System.out.println("总共收到 " + outputs.size() + " 个节点输出");
+            log.info("总共收到 {} 个节点输出", outputs.size());
 
             // 获取最终输出
             NodeOutput lastOutput = outputs.get(outputs.size() - 1);
-            System.out.println("最终状态: " + lastOutput.state());
+            log.info("最终状态: {}", lastOutput.state());
 
             // 获取消息
             Optional<Object> messages = lastOutput.state().value("messages");
@@ -351,7 +368,7 @@ public class OllamaTest {
                 List<Message> messageList = (List<Message>) messages.get();
                 Message lastMessage = messageList.get(messageList.size() - 1);
                 if (lastMessage instanceof AssistantMessage assistantMsg) {
-                    System.out.println("最终回复: " + assistantMsg.getText());
+                    log.info("最终回复: {}", assistantMsg.getText());
                 }
             }
         }
@@ -363,7 +380,8 @@ public class OllamaTest {
      * 使用 outputType
      * 通过 Java 类定义输出结构，Agent 会自动生成对应的 JSON Schema
      */
-    public static void structuredOutputWithType() throws GraphRunnerException {
+    @Test
+    public void structuredOutputWithType() throws GraphRunnerException {
 
         ChatModel chatModel = getChatModel();
 
@@ -376,7 +394,7 @@ public class OllamaTest {
 
         AssistantMessage response = agent.call("写一首关于春天的诗");
         // 输出会遵循 PoemOutput 的结构
-        System.out.println(response.getText());
+        log.info(response.getText());
     }
 
     /**
@@ -385,7 +403,8 @@ public class OllamaTest {
      * 示例12：使用 outputSchema
      * 通过
      */
-    public static void structuredOutputWithSchema() throws GraphRunnerException {
+    @Test
+    public void structuredOutputWithSchema() throws GraphRunnerException {
 
         ChatModel chatModel = getChatModel();
 
@@ -402,7 +421,7 @@ public class OllamaTest {
 
         AssistantMessage response = agent.call("分析这段文本：春天来了，万物复苏。");
         // 输出会遵循 TextAnalysisResult 的结构
-        System.out.println(response.getText());
+        log.info(response.getText());
     }
 
     /**
@@ -410,7 +429,9 @@ public class OllamaTest {
      *
      * 生产环境：使用 RedisSaver、MongoSaver 等持久化存储替代 MemorySaver。
      */
-    public static void configureMemory() throws GraphRunnerException {
+    @SneakyThrows
+    @Test
+    public void configureMemory() throws GraphRunnerException {
 
         ChatModel chatModel = getChatModel();
 
@@ -419,6 +440,8 @@ public class OllamaTest {
                 .name("chat_agent")
                 .model(chatModel)
                 .saver(new MemorySaver())
+                .hooks(Arrays.asList(new LoggingHook(), new MessageTrimmingHook(),new CustomStopConditionHook()))
+                .interceptors(new GuardrailInterceptor(),new ToolMonitoringInterceptor())
                 .build();
 
         // 使用 thread_id 维护对话上下文
@@ -427,64 +450,99 @@ public class OllamaTest {
                 .build();
 
         AssistantMessage response = agent.call("我叫张三", config);
-        System.out.println(response.getText());
-        AssistantMessage response1 = agent.call("我叫什么名字？", config);// 输出: "你叫张三"
-        System.out.println(response1.getText());
+        log.info(response.getText());
+        // 输出: "你叫张三"
+        Flux<NodeOutput> stream = agent.stream("我叫什么名字？", config);
+
+        stream.subscribe(
+                output -> {
+                    // 检查是否为 StreamingOutput 类型
+                    if (output instanceof StreamingOutput streamingOutput) {
+                        OutputType type = streamingOutput.getOutputType();
+
+                        // 处理模型推理的流式输出
+                        if (type == OutputType.AGENT_MODEL_STREAMING) {
+                            // 流式增量内容，逐步显示
+                            System.out.print(streamingOutput.message().getText());
+                        } else if (type == OutputType.AGENT_MODEL_FINISHED) {
+                            // 模型推理完成，可获取完整响应
+                            System.out.println("\n模型输出完成");
+                        }
+
+                        // 处理工具调用完成（目前不支持 STREAMING）
+                        if (type == OutputType.AGENT_TOOL_FINISHED) {
+                            System.out.println("工具调用完成: " + output.node());
+                        }
+
+                        // 对于 Hook 节点，通常只关注完成事件（如果Hook没有有效输出可以忽略）
+                        if (type == OutputType.AGENT_HOOK_FINISHED) {
+                            System.out.println("Hook 执行完成: " + output.node());
+                        }
+                    }
+                },
+                error -> System.err.println("错误: " + error),
+                () -> System.out.println("Agent 执行完成")
+        );
+
+        Thread.sleep(10000);
+
     }
 
     // ==================== 结构化输出 ====================
 
+    // 注释掉main方法，改为测试方法
+    /*
     public static void main(String[] args) {
-        System.out.println("=== Agents Tutorial Examples ===");
-        System.out.println("注意：需要设置 AI_DASHSCOPE_API_KEY 环境变量\n");
+        log.info("=== Agents Tutorial Examples ===");
+        log.info("注意：需要设置 AI_DASHSCOPE_API_KEY 环境变量\n");
 
         try {
-//			System.out.println("\n--- 示例1：基础模型配置 ---");
-//			basicModelConfiguration();
-//
-//			System.out.println("\n--- 示例2：高级模型配置 ---");
-//			advancedModelConfiguration();
-//
-//			System.out.println("\n--- 示例3：工具使用 ---");
-//			toolUsage();
-//
-//			System.out.println("\n--- 示例5：基础 System Prompt ---");
-//			basicSystemPrompt();
-//
-//			System.out.println("\n--- 示例6：使用 instruction ---");
-//			instructionUsage();
-//
-//			System.out.println("\n--- 示例7：动态 System Prompt ---");
-//			dynamicSystemPrompt();
+			log.info("\n--- 示例1：基础模型配置 ---");
+			basicModelConfiguration();
 
-            System.out.println("\n--- 示例8：基础调用 ---");
+			log.info("\n--- 示例2：高级模型配置 ---");
+			advancedModelConfiguration();
+
+			log.info("\n--- 示例3：工具使用 ---");
+			toolUsage();
+
+			log.info("\n--- 示例5：基础 System Prompt ---");
+			basicSystemPrompt();
+
+			log.info("\n--- 示例6：使用 instruction ---");
+			instructionUsage();
+
+			log.info("\n--- 示例7：动态 System Prompt ---");
+			dynamicSystemPrompt();
+
+            log.info("\n--- 示例8：基础调用 ---");
             basicInvocation();
 
-//			System.out.println("\n--- 示例9：获取完整状态 ---");
-//			getFullState();
-//
-//			System.out.println("\n--- 示例10：使用配置 ---");
-//			useConfiguration();
-//
-//			System.out.println("\n--- 示例10.1：流式调用 - 基础用法 ---");
-//			basicStreamInvocation();
-//
-//			System.out.println("\n--- 示例10.2：流式调用 - 高级用法 ---");
-//			advancedStreamInvocation();
-//
-//			System.out.println("\n--- 示例10.3：流式调用 - 收集所有输出 ---");
-//			collectStreamOutputs();
-//
-//			System.out.println("\n--- 示例11：使用 outputType ---");
-//			structuredOutputWithType();
-//
-//			System.out.println("\n--- 示例12：使用 outputSchema ---");
-//			structuredOutputWithSchema();
-//
-//			System.out.println("\n--- 示例13：配置记忆 ---");
-//			configureMemory();
-//
-//			System.out.println("\n=== 所有示例执行完成 ===");
+			log.info("\n--- 示例9：获取完整状态 ---");
+			getFullState();
+
+			log.info("\n--- 示例10：使用配置 ---");
+			useConfiguration();
+
+			log.info("\n--- 示例10.1：流式调用 - 基础用法 ---");
+			basicStreamInvocation();
+
+			log.info("\n--- 示例10.2：流式调用 - 高级用法 ---");
+			advancedStreamInvocation();
+
+			log.info("\n--- 示例10.3：流式调用 - 收集所有输出 ---");
+			collectStreamOutputs();
+
+			log.info("\n--- 示例11：使用 outputType ---");
+			structuredOutputWithType();
+
+			log.info("\n--- 示例12：使用 outputSchema ---");
+			structuredOutputWithSchema();
+
+			log.info("\n--- 示例13：配置记忆 ---");
+			configureMemory();
+
+			log.info("\n=== 所有示例执行完成 ===");
         }
         catch (GraphRunnerException e) {
             System.err.println("执行示例时发生错误: " + e.getMessage());
@@ -496,6 +554,7 @@ public class OllamaTest {
         }
     }
 
+    */
     /**
      * 示例3：定义和使用工具
      */
@@ -598,78 +657,24 @@ public class OllamaTest {
     /**
      * 示例11：使用 outputType
      */
+    @Data
     public static class PoemOutput {
         private String title;
         private String content;
         private String style;
 
-        // Getters and Setters
-        public String getTitle() {
-            return title;
-        }
-
-        public void setTitle(String title) {
-            this.title = title;
-        }
-
-        public String getContent() {
-            return content;
-        }
-
-        public void setContent(String content) {
-            this.content = content;
-        }
-
-        public String getStyle() {
-            return style;
-        }
-
-        public void setStyle(String style) {
-            this.style = style;
-        }
     }
 
     /**
      * 示例12：文本分析结果输出类
      */
+    @Data
     public static class TextAnalysisResult {
         private String summary;
         private List<String> keywords;
         private String sentiment;
         private Double confidence;
 
-        // Getters and Setters
-        public String getSummary() {
-            return summary;
-        }
-
-        public void setSummary(String summary) {
-            this.summary = summary;
-        }
-
-        public List<String> getKeywords() {
-            return keywords;
-        }
-
-        public void setKeywords(List<String> keywords) {
-            this.keywords = keywords;
-        }
-
-        public String getSentiment() {
-            return sentiment;
-        }
-
-        public void setSentiment(String sentiment) {
-            this.sentiment = sentiment;
-        }
-
-        public Double getConfidence() {
-            return confidence;
-        }
-
-        public void setConfidence(Double confidence) {
-            this.confidence = confidence;
-        }
     }
 
     /**
@@ -679,6 +684,7 @@ public class OllamaTest {
      *
      * BEFORE_AGENT / AFTER_AGENT：Agent 整体执行前后
      */
+//    @HookPositions({HookPosition.BEFORE_AGENT, HookPosition.AFTER_AGENT})
     public static class LoggingHook extends AgentHook {
         @Override
         public String getName() {
@@ -695,13 +701,13 @@ public class OllamaTest {
 
         @Override
         public CompletableFuture<Map<String, Object>> beforeAgent(OverAllState state, RunnableConfig config) {
-            System.out.println("Agent 开始执行");
+            log.info("Agent 开始执行");
             return CompletableFuture.completedFuture(Map.of());
         }
 
         @Override
         public CompletableFuture<Map<String, Object>> afterAgent(OverAllState state, RunnableConfig config) {
-            System.out.println("Agent 执行完成");
+            log.info("Agent 执行完成");
             return CompletableFuture.completedFuture(Map.of());
         }
     }
@@ -767,6 +773,7 @@ public class OllamaTest {
         }
 
         private boolean containsSensitiveContent(List<Message> messages) {
+            log.info("检查输入:{}", messages);
             // 实现敏感内容检测逻辑
             return false;
         }
@@ -805,7 +812,7 @@ public class OllamaTest {
         }
 
         private void logSuccess(ToolCallRequest request, long duration) {
-            System.out.println("Tool " + request.getToolName() + " succeeded in " + duration + "ms");
+            log.info("Tool {} succeeded in {}ms", request.getToolName(), duration);
         }
 
         private void logError(ToolCallRequest request, Exception e, long duration) {
