@@ -69,7 +69,7 @@ import reactor.core.publisher.Flux;
  * https://java2ai.com/docs/frameworks/agent-framework/tutorials/agents/
  */
 @Log4j2
-public class OllamaTest {
+public class AgentsExampleOllama {
 
 
     private static ReactAgent getReactAgent(String my_agent) {
