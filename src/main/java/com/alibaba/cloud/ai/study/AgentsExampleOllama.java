@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alibaba.cloud.ai.examples.documentation.framework.tutorials;
+package com.alibaba.cloud.ai.study;
 
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.OverAllState;
@@ -26,7 +26,6 @@ import com.alibaba.cloud.ai.graph.agent.hook.ModelHook;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.MessagesModelHook;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.AgentCommand;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.UpdatePolicy;
-import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelInterceptor;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelRequest;
@@ -43,7 +42,6 @@ import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -65,45 +63,13 @@ import java.util.function.BiFunction;
 
 import reactor.core.publisher.Flux;
 
+import static com.alibaba.cloud.ai.common.CommonUtils.*;
+
 /**
  * https://java2ai.com/docs/frameworks/agent-framework/tutorials/agents/
  */
 @Log4j2
 public class AgentsExampleOllama {
-
-
-    private static ReactAgent getReactAgent(String my_agent) {
-
-        ChatModel chatModel = getChatModel();
-
-        ReactAgent agent = ReactAgent.builder()
-                .name(my_agent)
-                .model(chatModel)
-                // 限制最多调用 5 次
-                .hooks(ModelCallLimitHook.builder().runLimit(5).build())
-                // 使用自定义停止条件
-//                .hooks(new CustomStopConditionHook())
-                .build();
-
-        return agent;
-    }
-
-    @NotNull
-    private static ChatModel getChatModel() {
-        OllamaApi build = OllamaApi.builder()
-                .baseUrl("http://996code.top:11434")
-                .build();
-
-        ChatModel chatModel = OllamaChatModel.builder()
-                .defaultOptions(
-                        OllamaChatOptions.builder()
-                                .model("qwen3:1.7b")
-                                .build()
-                )
-                .ollamaApi(build)
-                .build();
-        return chatModel;
-    }
 
     // ==================== 基础模型配置 ====================
 
