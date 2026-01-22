@@ -560,14 +560,22 @@ public class ToolsExampleOllama {
         // Method tools
         CalculatorTools calculatorTools = new CalculatorTools();
 
+        //  Multiple tools with the same name (search) found in ToolCallingChatOptions
+        //  工具多种方式不能重复，所以这边使用了不同的名称
+
         // Direct tool
-        ToolCallback searchTool = FunctionToolCallback.builder("search", new SearchToolWithContext())
-                .description("Search for information")
+        ToolCallback searchTool1 = FunctionToolCallback.builder("search_info1", new SearchToolWithContext())
+                .description("Search for information1")
+                .inputType(CalculatorFunctionWithContextRequest.class)
+                .build();
+        // Direct tool
+        ToolCallback searchTool2 = FunctionToolCallback.builder("search_info2", new SearchToolWithContext())
+                .description("Search for information2")
                 .inputType(CalculatorFunctionWithContextRequest.class)
                 .build();
 
         // ToolCallbackProvider
-        ToolCallbackProvider toolProvider = new CustomToolCallbackProvider(List.of(searchTool));
+        ToolCallbackProvider toolProvider = new CustomToolCallbackProvider(List.of(searchTool1));
 
         // 组合使用多种方式
         ReactAgent agent = ReactAgent.builder()
@@ -577,7 +585,7 @@ public class ToolsExampleOllama {
                 .instruction("You are a helpful assistant with calculator and search capabilities.")
                 .methodTools(calculatorTools)  // Method-based tools
                 .toolCallbackProviders(toolProvider)  // Provider-based tools
-                .tools(searchTool)  // Direct tools
+                .tools(searchTool2)  // Direct tools
                 .saver(new MemorySaver())
                 .build();
 
