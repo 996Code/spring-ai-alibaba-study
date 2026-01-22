@@ -14,6 +14,9 @@ import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Test;
@@ -122,7 +125,7 @@ public class ToolsExampleOllama {
         ToolCallback searchTool = FunctionToolCallback
                 .builder("web_search", new SearchFunction())  // 自定义名称
                 .description("Search the web for information")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
 
         System.out.println(searchTool.getToolDefinition().name());  // web_search
@@ -137,7 +140,7 @@ public class ToolsExampleOllama {
         ToolCallback calculatorTool = FunctionToolCallback
                 .builder("calculator", new CalculatorFunction())
                 .description("Performs arithmetic calculations. Use this for any math problems.")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
     }
 
@@ -249,13 +252,7 @@ public class ToolsExampleOllama {
      */
     @Test
     public void accessingMemoryStore() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 配置持久化存储
         MemorySaver memorySaver = new MemorySaver();
@@ -277,14 +274,16 @@ public class ToolsExampleOllama {
                 .threadId("session_1")
                 .build();
 
-        agent.call("Save user: userid: abc123, name: Foo, age: 25, email: foo@example.com", config1);
+        AssistantMessage call1 = agent.call("Save user: userid: abc123, name: Foo, age: 25, email: foo@example.com", config1);
+        System.out.println(call1.getText());
 
         // 第二个会话：获取用户信息，注意这里用的是不同的 threadId
         RunnableConfig config2 = RunnableConfig.builder()
                 .threadId("session_2")
                 .build();
 
-        agent.call("Get user info for user with id 'abc123'", config2);
+        AssistantMessage call = agent.call("Get user info for user with id 'abc123'", config2);
+        System.out.println(call.getText());
     }
 
     /**
@@ -292,13 +291,7 @@ public class ToolsExampleOllama {
      */
     @Test
     public void toolsInReactAgent() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 创建工具
         ToolCallback weatherTool = FunctionToolCallback
@@ -310,7 +303,7 @@ public class ToolsExampleOllama {
         ToolCallback searchTool = FunctionToolCallback
                 .builder("search", new SearchFunction())
                 .description("Search for information")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
 
         // 创建带有工具的 Agent
@@ -332,13 +325,7 @@ public class ToolsExampleOllama {
      */
     @Test
     public void comprehensiveToolExample() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 定义多个工具
         ToolCallback weatherTool = FunctionToolCallback
@@ -350,13 +337,13 @@ public class ToolsExampleOllama {
         ToolCallback calculatorTool = FunctionToolCallback
                 .builder("calculator", new CalculatorFunction())
                 .description("Perform arithmetic calculations")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
 
         ToolCallback searchTool = FunctionToolCallback
                 .builder("web_search", new SearchFunction())
                 .description("Search the web for information")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
 
         // 创建 Agent
@@ -380,9 +367,12 @@ public class ToolsExampleOllama {
                 .threadId("session_1")
                 .build();
 
-        agent.call("What's the weather in New York?", config);
-        agent.call("Calculate 25 * 4 + 10", config);
-        agent.call("Search for latest AI news", config);
+        AssistantMessage call = agent.call("What's the weather in New York?", config);
+        System.out.println(call.getText());
+        AssistantMessage call1 = agent.call("Calculate 25 * 4 + 10", config);
+        System.out.println(call1.getText());
+        AssistantMessage call2 = agent.call("Search for latest AI news", config);
+        System.out.println(call2.getText());
     }
 
     /**
@@ -390,13 +380,7 @@ public class ToolsExampleOllama {
      */
     @Test
     public void methodToolsExample() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 创建带有 @Tool 注解方法的工具对象
         CalculatorTools calculatorTools = new CalculatorTools();
@@ -415,8 +399,10 @@ public class ToolsExampleOllama {
                 .threadId("method_tools_session")
                 .build();
 
-        agent.call("What is 15 + 27?", config);
-        agent.call("What is 8 * 9?", config);
+        AssistantMessage call = agent.call("What is 15 + 27?", config);
+        System.out.println(call.getText());
+        AssistantMessage call1 = agent.call("What is 8 * 9?", config);
+        System.out.println(call1.getText());
     }
 
     /**
@@ -424,13 +410,7 @@ public class ToolsExampleOllama {
      */
     @Test
     public void multipleMethodToolsExample() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 创建多个工具对象
         CalculatorTools calculatorTools = new CalculatorTools();
@@ -450,26 +430,24 @@ public class ToolsExampleOllama {
                 .threadId("multi_method_tools_session")
                 .build();
 
-        agent.call("What is 10 * 8 and what's the weather in Beijing?", config);
+        AssistantMessage call = agent.call("What is 10 * 8 and what's the weather in Beijing?", config);
+        System.out.println(call.getText());
     }
 
     /**
      * 示例13：使用 ToolCallbackProvider
+     *
+     * 使用 ToolCallbackProvider 接口动态提供工具。这种方式适合需要根据运行时条件动态决定提供哪些工具的场景。
+     *
      */
     @Test
     public void toolCallbackProviderExample() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 创建工具
         ToolCallback searchTool = FunctionToolCallback.builder("search", new SearchToolWithContext())
                 .description("Search for information")
-                .inputType(String.class)
+                .inputType(CalculatorFunctionWithContextRequest.class)
                 .build();
 
         // 创建 ToolCallbackProvider
@@ -489,21 +467,18 @@ public class ToolsExampleOllama {
                 .threadId("tool_provider_session")
                 .build();
 
-        agent.call("Search for information about Spring AI", config);
+        AssistantMessage call = agent.call("Search for information about Spring AI", config);
+        System.out.println(call.getText());
     }
 
     /**
      * 示例14：使用 toolNames 和 resolver（必须配合使用）
+     * 使用 toolNames() 方法指定工具名称，配合 resolver() 方法提供的 ToolCallbackResolver 来解析工具。
+     * 这种方式适合工具定义和工具使用分离的场景。
      */
     @Test
     public void toolNamesWithResolverExample() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 创建工具（使用复合类型）
         ToolCallback searchTool = FunctionToolCallback.builder("search", new SearchFunctionWithRequest())
@@ -535,7 +510,8 @@ public class ToolsExampleOllama {
                 .threadId("tool_names_session")
                 .build();
 
-        agent.call("Calculate 25 + 4 and then search for information about the result", config);
+        AssistantMessage call = agent.call("Calculate 25 + 4 and then search for information about the result", config);
+        System.out.println(call.getText());
     }
 
     /**
@@ -543,18 +519,12 @@ public class ToolsExampleOllama {
      */
     @Test
     public void resolverExample() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // 创建工具
         ToolCallback calculatorTool = FunctionToolCallback.builder("calculator", new CalculatorFunctionWithContext())
                 .description("Perform arithmetic calculations")
-                .inputType(String.class)
+                .inputType(CalculatorFunctionWithContextRequest.class)
                 .build();
 
         // 创建 resolver
@@ -576,7 +546,8 @@ public class ToolsExampleOllama {
                 .threadId("resolver_session")
                 .build();
 
-        agent.call("What is 100 divided by 4?", config);
+        AssistantMessage call = agent.call("What is 100 divided by 4?", config);
+        System.out.println(call.getText());
     }
 
     /**
@@ -584,13 +555,7 @@ public class ToolsExampleOllama {
      */
     @Test
     public void combinedToolProvisionExample() throws GraphRunnerException {
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-                .build();
-
-        ChatModel chatModel = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .build();
+        ChatModel chatModel = getChatModel();
 
         // Method tools
         CalculatorTools calculatorTools = new CalculatorTools();
@@ -598,7 +563,7 @@ public class ToolsExampleOllama {
         // Direct tool
         ToolCallback searchTool = FunctionToolCallback.builder("search", new SearchToolWithContext())
                 .description("Search for information")
-                .inputType(String.class)
+                .inputType(CalculatorFunctionWithContextRequest.class)
                 .build();
 
         // ToolCallbackProvider
@@ -620,7 +585,8 @@ public class ToolsExampleOllama {
                 .threadId("combined_session")
                 .build();
 
-        agent.call("Calculate 50 + 75 and search for information about mathematics", config);
+        AssistantMessage call = agent.call("Calculate 50 + 75 and search for information about mathematics", config);
+        System.out.println(call.getText());
     }
 
     // ==================== 高级模式定义 ====================
@@ -629,12 +595,12 @@ public class ToolsExampleOllama {
      * 创建保存用户信息工具
      */
     private ToolCallback createSaveUserInfoTool() {
-        return FunctionToolCallback.builder("save_user_info", (String input) -> {
+        return FunctionToolCallback.builder("save_user_info", (JSONObject input) -> {
                     // 简化的实现
                     return "User info saved: " + input;
                 })
                 .description("Save user information")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
     }
 
@@ -642,12 +608,12 @@ public class ToolsExampleOllama {
      * 创建获取用户信息工具
      */
     private ToolCallback createGetUserInfoTool() {
-        return FunctionToolCallback.builder("get_user_info", (String userId) -> {
+        return FunctionToolCallback.builder("get_user_info", (JSONObject userId) -> {
                     // 简化的实现
                     return "User info for: " + userId;
                 })
                 .description("Get user information by ID")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
     }
 
@@ -682,10 +648,10 @@ public class ToolsExampleOllama {
     /**
      * 搜索函数
      */
-    public class SearchFunction implements Function<String, String> {
+    public class SearchFunction implements Function<JSONObject, String> {
         @Override
-        public String apply(String query) {
-            return "Search results for: " + query;
+        public String apply(JSONObject query) {
+            return "Search results for: " + query.getString("query");
         }
     }
 
@@ -694,11 +660,11 @@ public class ToolsExampleOllama {
     /**
      * 计算器函数
      */
-    public class CalculatorFunction implements Function<String, String> {
+    public class CalculatorFunction implements Function<JSONObject, String> {
         @Override
-        public String apply(String expression) {
+        public String apply(JSONObject expression) {
             // 简化的计算逻辑
-            return "Result: " + expression;
+            return "Result: " + expression.getString("expression");
         }
     }
 
@@ -892,9 +858,9 @@ public class ToolsExampleOllama {
     /**
      * 带上下文的搜索工具
      */
-    public class SearchToolWithContext implements BiFunction<String, ToolContext, String> {
+    public class SearchToolWithContext implements BiFunction<CalculatorFunctionWithContextRequest, ToolContext, String> {
         @Override
-        public String apply(String query, ToolContext toolContext) {
+        public String apply(CalculatorFunctionWithContextRequest query, ToolContext toolContext) {
             return "Search results for: " + query;
         }
     }
@@ -904,7 +870,7 @@ public class ToolsExampleOllama {
     /**
      * 搜索请求类（用于复合类型）
      */
-    public class SearchRequest {
+    public static class SearchRequest {
         @JsonProperty(required = true)
         @JsonPropertyDescription("The search query string")
         public String query;
@@ -930,7 +896,7 @@ public class ToolsExampleOllama {
     /**
      * 计算器请求类（用于复合类型）
      */
-    public class CalculatorRequest {
+    public static class CalculatorRequest {  // 添加 static 修饰符
         @JsonProperty(required = true)
         @JsonPropertyDescription("First number for the calculation")
         public int a;
@@ -948,6 +914,24 @@ public class ToolsExampleOllama {
         }
     }
 
+
+    /**
+     * 计算器请求类（用于复合类型）
+     */
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class CalculatorFunctionWithContextRequest {  // 添加 static 修饰符
+        @JsonProperty(required = true)
+        public String operation;
+
+        @JsonProperty(required = true)
+        public Double denominator;
+        @JsonProperty(required = true)
+        public Double numerator;
+
+    }
+
     /**
      * 使用复合类型的计算器函数
      */
@@ -961,18 +945,19 @@ public class ToolsExampleOllama {
     /**
      * 带上下文的计算器函数
      */
-    public class CalculatorFunctionWithContext implements BiFunction<String, ToolContext, String> {
+    public class CalculatorFunctionWithContext implements BiFunction<CalculatorFunctionWithContextRequest, ToolContext, String> {
         @Override
-        public String apply(String expression, ToolContext toolContext) {
+        public String apply(CalculatorFunctionWithContextRequest expression, ToolContext toolContext) {
             // 简单的计算解析（用于演示）
-            if (expression.contains("/")) {
-                String[] parts = expression.split("/");
-                double result = Double.parseDouble(parts[0].trim()) / Double.parseDouble(parts[1].trim());
+            String operation = expression.getOperation();
+            Double denominator = expression.getDenominator();
+            Double numerator = expression.getNumerator();
+            if (operation.equals("divided")) {
+                double result = numerator / denominator;
                 return String.valueOf(result);
             }
-            if (expression.contains("*")) {
-                String[] parts = expression.split("\\*");
-                double result = Double.parseDouble(parts[0].trim()) * Double.parseDouble(parts[1].trim());
+            if (operation.contains("*")) {
+                double result = numerator * denominator;
                 return String.valueOf(result);
             }
             return "Calculation result for: " + expression;
