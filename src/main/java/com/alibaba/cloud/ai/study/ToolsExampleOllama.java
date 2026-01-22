@@ -4,13 +4,17 @@ package com.alibaba.cloud.ai.study;
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.examples.documentation.framework.tutorials.ToolsExample;
+import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.tools.ToolContextConstants;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
+import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -23,6 +27,7 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.ai.tool.resolution.StaticToolCallbackResolver;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +45,26 @@ import static com.alibaba.cloud.ai.common.CommonUtils.getChatModel;
 @Log4j2
 public class ToolsExampleOllama {
 
+    /**
+     * @Tool
+     * name：tool 的名称。如果未提供，将使用方法名称。AI model 使用此名称在调用时识别 tool。因此，不允许在同一类中有两个同名 tools。名称必须在特定聊天请求中提供给 model 的所有 tools 中唯一。
+     *  description：tool 的描述，model 可以使用它来理解何时以及如何调用 tool。如果未提供，方法名称将用作 tool 描述。
+     * returnDirect：tool 结果是否应直接返回给客户端或传递回 model
+     * resultConverter：用于将 tool call 的结果转换为 String object 以发送回 AI model 的ToolCallResultConverter 实现。
+     *
+     * @ToolParam
+     * description：参数的描述，model 可以使用它来更好地理解如何使用它。
+     * required：参数是必需还是可选的
+     */
+
+    /**
+     * 编程方式构建 MethodToolCallback
+     * toolDefinition：定义 tool 名称、描述和输入 schema 的 ToolDefinition 实例
+     * toolMetadata：定义附加设置的 ToolMetadata 实例，例如结果是否应直接返回给客户端，以及要使用的结果转换器
+     * toolMethod：表示 tool 方法的 Method 实例
+     * toolObject：包含 tool 方法的对象实例
+     * toolCallResultConverter：用于将 tool call 的结果转换为 String 对象以发送回 AI model 的 ToolCallResultConverter 实例
+     */
 
     // ==================== 基础工具定义 ====================
 
@@ -49,8 +74,11 @@ public class ToolsExampleOllama {
     @Test
     public void programmaticToolSpecification() {
         ToolCallback toolCallback = FunctionToolCallback
+                // tool 的名称
                 .builder("currentWeather", new WeatherService())
+                // tool 的描述
                 .description("Get the weather in location")
+                // 函数输入的类型
                 .inputType(WeatherRequest.class)
                 .build();
     }
@@ -61,17 +89,29 @@ public class ToolsExampleOllama {
      * 示例2：添加工具到 ChatClient（使用编程规范）
      */
     @Test
-    public void addToolToChatClient() {
+    public void addToolToChatClient() throws GraphRunnerException {
         ChatModel chatModel = getChatModel();
 
         ToolCallback toolCallback = FunctionToolCallback
+                // tool 的名称
                 .builder("currentWeather", new WeatherService())
                 .description("Get the weather in location")
                 .inputType(WeatherRequest.class)
                 .build();
 
+
         // Note: ChatClient usage would be shown here in actual implementation
         // This is a simplified example
+
+        // 使用工具
+        ReactAgent agent = ReactAgent.builder()
+                .name("my_agent")
+                .model(chatModel)
+                .tools(toolCallback)
+                .build();
+
+        AssistantMessage call = agent.call("What is the weather like in New York City?");
+        System.out.println(call.getText());
     }
 
     /**
@@ -104,27 +144,69 @@ public class ToolsExampleOllama {
     /**
      * 示例5：高级模式定义
      */
+    @SneakyThrows
     @Test
     public void advancedSchemaDefinition() {
+
+        ChatModel chatModel = getChatModel();
+
         ToolCallback weatherTool = FunctionToolCallback
                 .builder("get_weather", new WeatherFunction())
                 .description("Get current weather and optional forecast")
                 .inputType(WeatherInput.class)
                 .build();
+
+        // 使用工具
+        ReactAgent agent = ReactAgent.builder()
+                .name("my_agent")
+                .model(chatModel)
+                .tools(weatherTool)
+                .build();
+
+        AssistantMessage call = agent.call("What is the weather like in New York City?");
+        System.out.println(call.getText());
+
     }
 
 
     /**
      * 示例6：访问状态
      */
+    @SneakyThrows
     @Test
     public void accessingState() {
+
+        ChatModel chatModel = getChatModel();
+
         // 创建工具
         ToolCallback summaryTool = FunctionToolCallback
                 .builder("summarize_conversation", new ConversationSummaryTool())
                 .description("Summarize the conversation so far")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
+
+        // 使用工具
+        ReactAgent agent = ReactAgent.builder()
+                .name("my_agent")
+                .model(chatModel)
+                .saver(new MemorySaver())
+                .tools(summaryTool)
+                .build();
+
+        // 使用 thread_id 维护对话上下文
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId("user_123")
+                .build();
+
+        AssistantMessage response = agent.call("我叫张三", config);
+        log.info(response.getText());
+        // 输出: "你叫张三"
+        response = agent.call("我叫什么名字？", config);
+        log.info(response.getText());
+
+        AssistantMessage call = agent.call("总结一下我刚说了什么？", config);
+        log.info(call.getText());
+
     }
 
 
@@ -140,7 +222,7 @@ public class ToolsExampleOllama {
         ToolCallback accountTool = FunctionToolCallback
                 .builder("get_account_info", new AccountInfoTool())
                 .description("Get the current user's account information")
-                .inputType(String.class)
+                .inputType(JSONObject.class)
                 .build();
 
         // 在 ReactAgent 中使用
@@ -156,7 +238,8 @@ public class ToolsExampleOllama {
                 .addMetadata("user_id", "user123")
                 .build();
 
-        agent.call("question", config);
+        AssistantMessage call = agent.call("获取我的财务账户信息", config);
+        System.out.println(call.getText());
     }
 
 
@@ -634,6 +717,8 @@ public class ToolsExampleOllama {
 
     /**
      * 天气函数（高级版）
+     * WeatherInput 输入参数
+     * String 输出参数
      */
     public class WeatherFunction implements Function<WeatherInput, String> {
         @Override
@@ -657,12 +742,12 @@ public class ToolsExampleOllama {
     /**
      * 对话摘要工具
      */
-    public class ConversationSummaryTool implements BiFunction<String, ToolContext, String> {
+    public class ConversationSummaryTool implements BiFunction<JSONObject, ToolContext, String> {
 
         @Override
-        public String apply(String input, ToolContext toolContext) {
-            OverAllState state = (OverAllState) toolContext.getContext().get("state");
-            RunnableConfig config = (RunnableConfig) toolContext.getContext().get("config");
+        public String apply(JSONObject input, ToolContext toolContext) {
+            OverAllState state = (OverAllState) toolContext.getContext().get(ToolContextConstants.AGENT_STATE_CONTEXT_KEY);
+            RunnableConfig config = (RunnableConfig) toolContext.getContext().get(ToolContextConstants.AGENT_CONFIG_CONTEXT_KEY);
 
             // 从state中获取消息
             Optional<Object> messagesOpt = state.value("messages");
@@ -696,7 +781,7 @@ public class ToolsExampleOllama {
     /**
      * 账户信息工具
      */
-    public class AccountInfoTool implements BiFunction<String, ToolContext, String> {
+    public class AccountInfoTool implements BiFunction<JSONObject, ToolContext, String> {
 
         private final Map<String, Map<String, Object>> USER_DATABASE = Map.of(
                 "user123", Map.of(
@@ -714,8 +799,8 @@ public class ToolsExampleOllama {
         );
 
         @Override
-        public String apply(String query, ToolContext toolContext) {
-            RunnableConfig config = (RunnableConfig) toolContext.getContext().get("config");
+        public String apply(JSONObject query, ToolContext toolContext) {
+            RunnableConfig config = (RunnableConfig) toolContext.getContext().get(ToolContextConstants.AGENT_CONFIG_CONTEXT_KEY);
             String userId = (String) config.metadata("user_id").orElse(null);
 
             if (userId == null) {
