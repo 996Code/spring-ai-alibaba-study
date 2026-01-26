@@ -106,12 +106,34 @@ https://java2ai.com/docs/frameworks/agent-framework/tutorials/agents
             <scope>provided</scope>
         </dependency>
 
-        <!--        <dependency>-->
-<!--            <groupId>org.redisson</groupId>-->
-<!--            <artifactId>redisson</artifactId>-->
-<!--            <version>${redission.version}</version>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>${redission.version}</version>
+        </dependency>
 
+        <!-- 强制统一 Jackson 版本以解决 treeToValue 方法不存在的问题 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.18.4</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>2.18.4</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>2.18.4</version>
+        </dependency>
+        <!-- Fastjson依赖 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.78</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -160,7 +182,6 @@ https://java2ai.com/docs/frameworks/agent-framework/tutorials/agents
                 <updatePolicy>always</updatePolicy>
             </snapshots>
             <id>sonatype-snapshots</id>
-            <name>Sonatype Snapshot Repository</name>
             <url>https://oss.sonatype.org/content/repositories/snapshots</url>
         </repository>
     </repositories>

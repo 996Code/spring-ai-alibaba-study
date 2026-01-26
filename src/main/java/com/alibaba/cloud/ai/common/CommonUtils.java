@@ -1,8 +1,13 @@
 package com.alibaba.cloud.ai.common;
 
+import com.alibaba.cloud.ai.config.FastJsonCodec;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import org.jetbrains.annotations.NotNull;
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
+import org.redisson.config.SingleServerConfig;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
@@ -45,6 +50,19 @@ public class CommonUtils {
                 .ollamaApi(build)
                 .build();
         return chatModel;
+    }
+
+    public static RedissonClient redisCli() {
+
+        Config config = new Config();
+        // 设置Fastjson作为序列化工具
+        config.setCodec(new FastJsonCodec());
+        SingleServerConfig singleServerConfig = config.useSingleServer();
+        singleServerConfig.setAddress("redis://192.168.99.22:6379");
+        singleServerConfig.setDatabase(6);
+        singleServerConfig.setPassword("Njmind6379!");
+        RedissonClient redissonClient = Redisson.create(config);
+        return redissonClient ;
     }
 
 }
