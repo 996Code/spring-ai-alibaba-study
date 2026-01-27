@@ -94,8 +94,8 @@ public class MemoryExampleOllama {
                 .threadId("user_123") // threadId 指定会话 ID
                 .build();
 
-        AssistantMessage call = agent.call("你好！我叫 张三。", config);
-        System.out.println(call.getText());
+//        AssistantMessage call = agent.call("你好！我叫 张三。", config);
+//        System.out.println(call.getText());
 
         AssistantMessage call1= agent.call("我叫什么名字", config);
         System.out.println(call1.getText());

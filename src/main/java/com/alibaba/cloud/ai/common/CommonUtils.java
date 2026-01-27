@@ -56,7 +56,7 @@ public class CommonUtils {
 
         Config config = new Config();
         // 设置Fastjson作为序列化工具
-        config.setCodec(new FastJsonCodec());
+//        config.setCodec(new FastJsonCodec());
         SingleServerConfig singleServerConfig = config.useSingleServer();
         singleServerConfig.setAddress("redis://192.168.99.22:6379");
         singleServerConfig.setDatabase(6);
