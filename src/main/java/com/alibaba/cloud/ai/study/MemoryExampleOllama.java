@@ -2,24 +2,40 @@ package com.alibaba.cloud.ai.study;
 
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
+import com.alibaba.cloud.ai.examples.documentation.framework.tutorials.MemoryExample;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.hook.HookPosition;
+import com.alibaba.cloud.ai.graph.agent.hook.HookPositions;
+import com.alibaba.cloud.ai.graph.agent.hook.messages.AgentCommand;
+import com.alibaba.cloud.ai.graph.agent.hook.messages.MessagesModelHook;
+import com.alibaba.cloud.ai.graph.agent.hook.messages.UpdatePolicy;
+import com.alibaba.cloud.ai.graph.agent.tools.ToolContextConstants;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
+import com.alibaba.fastjson.JSONObject;
 import org.junit.jupiter.api.Test;
-import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
-import org.redisson.config.Config;
-import org.redisson.config.SingleServerConfig;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 
-import static com.alibaba.cloud.ai.common.CommonUtils.getChatModel;
-import static com.alibaba.cloud.ai.common.CommonUtils.redisCli;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiFunction;
 
+import static com.alibaba.cloud.ai.common.CommonUtils.*;
+
+/**
+ * https://java2ai.com/docs/frameworks/agent-framework/tutorials/memory
+ */
 public class MemoryExampleOllama {
 
 
@@ -53,18 +69,6 @@ public class MemoryExampleOllama {
     }
 
 
-    /**
-     * 创建示例工具
-     */
-    private ToolCallback createGetUserInfoTool() {
-        return FunctionToolCallback.builder("get_user_info", (String query) -> {
-                    return "User info: " + query;
-                })
-                .description("Get user information")
-                .inputType(String.class)
-                .build();
-    }
-
 
     /**
      * 示例2：生产环境使用 Redis Checkpointer
@@ -74,14 +78,12 @@ public class MemoryExampleOllama {
 
         ChatModel chatModel = getChatModel();
 
-        RedissonClient redissonClient = redisCli();
-
         ToolCallback getUserInfoTool = createGetUserInfoTool();
 
 		// 配置 Redis checkpointer
-		RedisSaver redisSaver = RedisSaver.builder().redisson(redissonClient).build();
+        RedisSaver redisSaver = redisSaver();
 
-		ReactAgent agent = ReactAgent.builder()
+        ReactAgent agent = ReactAgent.builder()
 				.name("my_agent")
 				.model(chatModel)
 				.tools(getUserInfoTool)
@@ -103,4 +105,397 @@ public class MemoryExampleOllama {
 	}
 
 
+
+    // ==================== 自定义 Agent 记忆 ====================
+
+    /**
+     * 示例5：使用消息修剪
+     */
+    @Test
+    public void useMessageTrimming() throws GraphRunnerException {
+        ChatModel chatModel = getChatModel();
+
+        ToolCallback[] tools = new ToolCallback[0];
+        RedisSaver redisSaver = redisSaver();
+        // 使用
+        ReactAgent agent = ReactAgent.builder()
+                .name("my_agent")
+                .model(chatModel)
+                .tools(tools)
+                .hooks(new MessageTrimmingHook())
+                .saver(redisSaver)
+                .build();
+
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId("1")
+                .build();
+
+        AssistantMessage call = agent.call("你好，我叫 bob", config);
+        System.out.println(call.getText());
+        AssistantMessage call1 = agent.call("写一首关于猫的短诗", config);
+        System.out.println(call1.getText());
+        AssistantMessage call2 = agent.call("现在对狗做同样的事情", config);
+        System.out.println(call2.getText());
+        AssistantMessage finalResponse = agent.call("我叫什么名字？", config);
+
+        System.out.println(finalResponse.getText());
+        // 输出：你的名字是 Bob。你之前告诉我的。
+    }
+
+
+
+    // ==================== 修剪消息 ====================
+
+    /**
+     * 示例8：使用消息删除
+     */
+    @Test
+    public void useMessageDeletion() throws GraphRunnerException {
+        ChatModel chatModel = getChatModel();
+
+        RedisSaver redisSaver = redisSaver();
+
+        ReactAgent agent = ReactAgent.builder()
+                .name("my_agent")
+                .model(chatModel)
+                .systemPrompt("请简洁明了。")
+                .hooks(new MessageDeletionHook())
+                .saver(new MemorySaver())
+                .build();
+
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId("1")
+                .build();
+
+        // 第一次调用
+        AssistantMessage call = agent.call("你好！我是 bob", config);
+        System.out.println(call.getText());
+        // 输出：[('human', "你好！我是 bob"), ('assistant', '你好 Bob！很高兴见到你...')]
+
+        // 第二次调用
+        AssistantMessage call1 = agent.call("我叫什么名字？", config);
+        System.out.println(call1.getText());
+        // 输出：[('human', "我叫什么名字？"), ('assistant', '你的名字是 Bob...')]
+    }
+
+
+
+    /**
+     * 示例10：使用消息总结
+     */
+    @Test
+    public void useMessageSummarization() throws GraphRunnerException {
+        ChatModel chatModel = getChatModel();
+
+        // 用于总结的模型（可以是更便宜的模型）
+        ChatModel summaryModel = chatModel;
+
+        MessageSummarizationHook summarizationHook = new MessageSummarizationHook(
+                summaryModel,
+                100,  // 在 4000 tokens 时触发总结
+                4     // 总结后保留最后 20 条消息
+        );
+
+        ReactAgent agent = ReactAgent.builder()
+                .name("my_agent")
+                .model(chatModel)
+                .hooks(summarizationHook)
+                .saver(new MemorySaver())
+                .build();
+
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId("1")
+                .build();
+
+        AssistantMessage call = agent.call("你好，我叫 bob", config);
+        System.out.println(call.getText());
+        AssistantMessage call1 = agent.call("写一首关于猫的短诗。需要500个字", config);
+        System.out.println(call1.getText());
+        AssistantMessage call2 = agent.call("现在对狗做同样的事情", config);
+        System.out.println(call2.getText());
+        AssistantMessage finalResponse = agent.call("我叫什么名字？", config);
+
+        System.out.println(finalResponse.getText());
+        // 输出：你的名字是 Bob！
+    }
+
+
+
+    // ==================== 删除消息 ====================
+
+    /**
+     * 示例12：使用工具访问记忆
+     */
+    @Test
+    public void accessMemoryInTool() throws GraphRunnerException {
+        ChatModel chatModel = getChatModel();
+
+        // 创建工具
+        ToolCallback getUserInfoTool = FunctionToolCallback
+                .builder("get_user_info", new UserInfoTool())
+                .description("查找用户信息")
+                .inputType(JSONObject.class)
+                .build();
+
+        // 使用
+        ReactAgent agent = ReactAgent.builder()
+                .name("my_agent")
+                .model(chatModel)
+                .tools(getUserInfoTool)
+                .saver(new MemorySaver())
+                .build();
+
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId("1")
+                .addMetadata("user_id", "user_123")
+                .build();
+
+        AssistantMessage response = agent.call("获取用户信息", config);
+        System.out.println(response.getText());
+    }
+
+
+    /**
+     * 创建示例工具
+     */
+    private ToolCallback createGetUserInfoTool() {
+        return FunctionToolCallback.builder("get_user_info", (String query) -> {
+                    return "User info: " + query;
+                })
+                .description("Get user information")
+                .inputType(String.class)
+                .build();
+    }
+
+
+
+    // ==================== 总结消息 ====================
+
+    /**
+     * 示例3：在 Hook 中访问和修改状态
+     * 注意：这个 Hook 主要用于访问消息历史，不修改消息，所以可以继续使用 ModelHook
+     * 但如果需要修改消息，应该使用 MessagesModelHook
+     */
+    @HookPositions({HookPosition.BEFORE_MODEL})
+    public static class CustomMemoryHook extends MessagesModelHook {
+
+        @Override
+        public String getName() {
+            return "custom_memory";
+        }
+
+        @Override
+        public AgentCommand beforeModel(List<Message> previousMessages, RunnableConfig config) {
+            // 访问消息历史（previousMessages 已经提供了消息列表）
+            // 处理消息...
+            // 如果需要修改消息，可以返回新的 AgentCommand
+            // 这里只是访问，不修改消息，所以返回原始消息
+            return new AgentCommand(previousMessages);
+        }
+    }
+
+    /**
+     * 示例4：消息修剪 Hook
+     * 使用 MessagesModelHook 实现，在模型调用前修剪消息列表
+     * 保留第一条消息和最后 keepCount 条消息，删除中间的消息
+     */
+    @HookPositions({HookPosition.BEFORE_MODEL})
+    public static class MessageTrimmingHook extends MessagesModelHook {
+
+        private static final int MAX_MESSAGES = 3;
+
+        @Override
+        public String getName() {
+            return "message_trimming";
+        }
+
+        @Override
+        public AgentCommand beforeModel(List<Message> previousMessages, RunnableConfig config) {
+            if (previousMessages.size() <= MAX_MESSAGES) {
+                // 如果消息数量未超过限制，无需更改
+                return new AgentCommand(previousMessages);
+            }
+
+            int keepCount = previousMessages.size() % 2 == 0 ? 3 : 4;
+
+            // 构建要保留的消息列表：第一条消息 + 最后 keepCount 条消息
+            List<Message> trimmedMessages = new ArrayList<>();
+            // 保留第一条消息
+            if (!previousMessages.isEmpty()) {
+                trimmedMessages.add(previousMessages.get(0));
+                trimmedMessages.add(previousMessages.get(1));
+            }
+            // 保留最后 keepCount 条消息
+            if (previousMessages.size() - keepCount > 0) {
+                trimmedMessages.addAll(previousMessages.subList(
+                        previousMessages.size() - keepCount,
+                        previousMessages.size()
+                ));
+            }
+
+            // 使用 REPLACE 策略替换所有消息
+            return new AgentCommand(trimmedMessages, UpdatePolicy.REPLACE);
+        }
+    }
+
+    // ==================== 访问记忆 ====================
+
+    /**
+     * 示例6：消息删除 Hook
+     * 使用 MessagesModelHook 实现，在模型调用后删除最早的两条消息
+     */
+    @HookPositions({HookPosition.AFTER_MODEL})
+    public static class MessageDeletionHook extends MessagesModelHook {
+
+        @Override
+        public String getName() {
+            return "message_deletion";
+        }
+
+        @Override
+        public AgentCommand afterModel(List<Message> previousMessages, RunnableConfig config) {
+            if (previousMessages.size() <= 2) {
+                // 如果消息数量不超过2条，无需删除
+                return new AgentCommand(previousMessages);
+            }
+
+            // 删除最早的两条消息，保留其余消息
+            List<Message> remainingMessages = previousMessages.subList(2, previousMessages.size());
+
+            // 使用 REPLACE 策略替换所有消息
+            return new AgentCommand(remainingMessages, UpdatePolicy.REPLACE);
+        }
+    }
+
+    /**
+     * 示例7：删除所有消息
+     * 使用 MessagesModelHook 实现，在模型调用后删除所有消息
+     */
+    @HookPositions({HookPosition.AFTER_MODEL})
+    public static class ClearAllMessagesHook extends MessagesModelHook {
+
+        @Override
+        public String getName() {
+            return "clear_all_messages";
+        }
+
+        @Override
+        public AgentCommand afterModel(List<Message> previousMessages, RunnableConfig config) {
+            // 删除所有消息，返回空列表
+            List<Message> emptyMessages = new ArrayList<>();
+            // 使用 REPLACE 策略替换所有消息为空列表
+            return new AgentCommand(emptyMessages, UpdatePolicy.REPLACE);
+        }
+    }
+
+    // ==================== 辅助方法 ====================
+
+    /**
+     * 示例9：消息总结 Hook
+     * 使用 MessagesModelHook 实现，在模型调用前检查消息数量，如果超过阈值则生成摘要
+     * 删除旧消息，保留摘要消息和最近的消息
+     */
+    @HookPositions({HookPosition.BEFORE_MODEL})
+    public static class MessageSummarizationHook extends MessagesModelHook {
+
+        private final ChatModel summaryModel;
+        private final int maxTokensBeforeSummary;
+        private final int messagesToKeep;
+
+        public MessageSummarizationHook(
+                ChatModel summaryModel,
+                int maxTokensBeforeSummary,
+                int messagesToKeep
+        ) {
+            this.summaryModel = summaryModel;
+            this.maxTokensBeforeSummary = maxTokensBeforeSummary;
+            this.messagesToKeep = messagesToKeep;
+        }
+
+        @Override
+        public String getName() {
+            return "message_summarization";
+        }
+
+        @Override
+        public AgentCommand beforeModel(List<Message> previousMessages, RunnableConfig config) {
+            // 估算 token 数量（简化版）
+            int estimatedTokens = previousMessages.stream()
+                    .mapToInt(m -> m.getText().length() / 4)
+                    .sum();
+
+            if (estimatedTokens < maxTokensBeforeSummary) {
+                // 如果 token 数量未超过阈值，无需总结
+                return new AgentCommand(previousMessages);
+            }
+
+            // 需要总结
+            int messagesToSummarize = previousMessages.size() - messagesToKeep;
+            if (messagesToSummarize <= 0) {
+                // 如果消息数量不足以总结，无需更改
+                return new AgentCommand(previousMessages);
+            }
+
+            List<Message> oldMessages = previousMessages.subList(0, messagesToSummarize);
+            List<Message> recentMessages = previousMessages.subList(
+                    messagesToSummarize,
+                    previousMessages.size()
+            );
+
+            // 生成摘要
+            String summary = generateSummary(oldMessages);
+
+            // 创建摘要消息
+            SystemMessage summaryMessage = new SystemMessage(
+                    "## 之前对话摘要:\n" + summary
+            );
+
+            // 构建新的消息列表：摘要消息 + 最近的消息
+            List<Message> newMessages = new ArrayList<>();
+            newMessages.add(summaryMessage);
+            newMessages.addAll(recentMessages);
+
+            // 使用 REPLACE 策略替换所有消息
+            return new AgentCommand(newMessages, UpdatePolicy.REPLACE);
+        }
+
+        private String generateSummary(List<Message> messages) {
+            StringBuilder conversation = new StringBuilder();
+            for (Message msg : messages) {
+                conversation.append(msg.getMessageType())
+                        .append(": ")
+                        .append(msg.getText())
+                        .append("\n");
+            }
+
+            String summaryPrompt = "请简要总结以下对话:\n\n" + conversation;
+
+            ChatResponse response = summaryModel.call(
+                    new Prompt(new UserMessage(summaryPrompt))
+            );
+
+            return response.getResult().getOutput().getText();
+        }
+    }
+
+
+    /**
+     * 示例11：在工具中读取短期记忆
+     */
+    public static class UserInfoTool implements BiFunction<JSONObject, ToolContext, String> {
+
+        @Override
+        public String apply(JSONObject query, ToolContext toolContext) {
+            // 从上下文中获取用户信息
+            RunnableConfig config = (RunnableConfig) toolContext.getContext().get(ToolContextConstants.AGENT_CONFIG_CONTEXT_KEY);
+            String userId = (String) config.metadata("user_id").orElse("");
+
+            if ("user_123".equals(userId)) {
+                return "用户是 John Smith";
+            }
+            else {
+                return "未知用户";
+            }
+        }
+    }
 }

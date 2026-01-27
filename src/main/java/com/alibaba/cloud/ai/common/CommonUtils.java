@@ -3,6 +3,7 @@ package com.alibaba.cloud.ai.common;
 import com.alibaba.cloud.ai.config.FastJsonCodec;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
+import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 import org.jetbrains.annotations.NotNull;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
@@ -63,6 +64,10 @@ public class CommonUtils {
         singleServerConfig.setPassword("Njmind6379!");
         RedissonClient redissonClient = Redisson.create(config);
         return redissonClient ;
+    }
+    public static RedisSaver redisSaver() {
+        RedisSaver redisSaver = RedisSaver.builder().redisson(redisCli()).build();
+        return redisSaver ;
     }
 
 }

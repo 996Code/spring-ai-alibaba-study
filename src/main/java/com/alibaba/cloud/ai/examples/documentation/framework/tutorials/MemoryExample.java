@@ -30,6 +30,7 @@ import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 
+import org.redisson.api.RedissonClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -94,27 +95,27 @@ public class MemoryExample {
 	/**
 	 * 示例2：生产环境使用 Redis Checkpointer
 	 */
-//	public static void productionMemoryConfiguration(RedissonClient redissonClient) {
-//		DashScopeApi dashScopeApi = DashScopeApi.builder()
-//				.apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
-//				.build();
-//
-//		ChatModel chatModel = DashScopeChatModel.builder()
-//				.dashScopeApi(dashScopeApi)
-//				.build();
-//
-//		ToolCallback getUserInfoTool = createGetUserInfoTool();
-//
-//		// 配置 Redis checkpointer
-//		RedisSaver redisSaver = RedisSaver.builder().redisson(redissonClient).build();
-//
-//		ReactAgent agent = ReactAgent.builder()
-//				.name("my_agent")
-//				.model(chatModel)
-//				.tools(getUserInfoTool)
-//				.saver(redisSaver)
-//				.build();
-//	}
+	public static void productionMemoryConfiguration(RedissonClient redissonClient) {
+		DashScopeApi dashScopeApi = DashScopeApi.builder()
+				.apiKey(System.getenv("AI_DASHSCOPE_API_KEY"))
+				.build();
+
+		ChatModel chatModel = DashScopeChatModel.builder()
+				.dashScopeApi(dashScopeApi)
+				.build();
+
+		ToolCallback getUserInfoTool = createGetUserInfoTool();
+
+		// 配置 Redis checkpointer
+		RedisSaver redisSaver = RedisSaver.builder().redisson(redissonClient).build();
+
+		ReactAgent agent = ReactAgent.builder()
+				.name("my_agent")
+				.model(chatModel)
+				.tools(getUserInfoTool)
+				.saver(redisSaver)
+				.build();
+	}
 
 	// ==================== 自定义 Agent 记忆 ====================
 
